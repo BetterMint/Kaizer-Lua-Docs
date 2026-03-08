@@ -60,7 +60,7 @@ Scripts receive a global **`kaizer`** table. All functions require `kaizer` to b
 | **`kaizer.menu.slider_float(label, value, min, max, format?)`** | Float slider. Returns new value. `format` optional (default `"%.2f"`). |
 | **`kaizer.menu.slider_int(label, value, min, max, format?)`** | Integer slider. Returns new value. `format` optional (default `"%d"`). |
 | **`kaizer.menu.input_text(label, default)`** | Single-line text input. Returns `(text, changed)`. |
-| **`kaizer.menu.begin(name)`** | Begin a window. Returns `true` if visible. |
+| **`kaizer.menu.begin(name, open?)`** | Begin a window. Returns `true` if visible. `open` is optional and currently for internal use – you normally call `begin("My Window")`. |
 | **`kaizer.menu.end()`** | End the current window. |
 | **`kaizer.menu.same_line()`** | Next widget on the same line. |
 | **`kaizer.menu.spacing()`** | Vertical spacing. |
@@ -69,6 +69,61 @@ Scripts receive a global **`kaizer`** table. All functions require `kaizer` to b
 | **`kaizer.menu.tree_pop()`** | End the current tree node. |
 | **`kaizer.menu.collapsing_header(label)`** | Collapsing section. Returns `true` if open. |
 | **`kaizer.menu.add_tab(name, callback)`** | Add a custom tab to the sidebar (next to Lua, Skins, etc.). Call each frame in `on_tick` with a function that draws the tab content. |
+
+#### Basic `kaizer.menu` patterns
+
+**Simple settings group**
+
+```lua
+function on_tick()
+    if not kaizer or not kaizer.menu_is_open() then return end
+
+    kaizer.menu.text("My basic settings")
+    kaizer.menu.separator()
+
+    local enabled = kaizer.options.get("enabled")
+    if enabled == nil then enabled = false end
+    enabled = kaizer.menu.checkbox("Enable feature", enabled)
+    kaizer.options.set("enabled", enabled)
+
+    local strength = kaizer.options.get("strength") or 1.0
+    strength = kaizer.menu.slider_float("Strength", strength, 0.0, 2.0)
+    kaizer.options.set("strength", strength)
+
+    kaizer.options.save()
+end
+```
+
+**Two-column layout with `same_line`**
+
+```lua
+function on_tick()
+    if not kaizer or not kaizer.menu_is_open() then return end
+
+    kaizer.menu.text("Keybinds")
+    kaizer.menu.separator()
+
+    kaizer.menu.text("Main toggle")
+    kaizer.menu.same_line()
+    local active = kaizer.utils.key_down(kaizer.VK.X)
+    kaizer.menu.text(active and "[X held]" or "[not held]")
+end
+```
+
+**Custom sidebar tab (menu integration)**
+
+```lua
+function on_tick()
+    if not kaizer then return end
+
+    kaizer.menu.add_tab("My Lua Tab", function()
+        kaizer.menu.text("Hello from my Lua tab")
+        if kaizer.menu.button("Click me") then
+            kaizer.log("My Lua button was clicked")
+        end
+    end)
+end
+```
 
 ---
 
@@ -88,6 +143,50 @@ All coordinates and sizes are in screen pixels. Colors are **R, G, B, A** (0–2
 | **`kaizer.render.text_size(text)`** | Returns `width, height` of the text in pixels. |
 | **`kaizer.render.image(texId, x, y, w, h)`** | Draw a loaded image. `texId` from `load_image`. |
 | **`kaizer.render.load_image(path)`** | Load image (PNG/JPG/BMP). Relative path = under Lua folder. Returns texture id (0 on failure). Cached by path. |
+
+#### Basic `kaizer.render` patterns
+
+**Static crosshair**
+
+```lua
+function on_tick()
+    if not kaizer or not kaizer.render or not kaizer.sdk then return end
+
+    local cx = kaizer.sdk.screen_center_x()
+    local cy = kaizer.sdk.screen_center_y()
+    local size = 8
+
+    kaizer.render.line(cx - size, cy, cx + size, cy, 0, 255, 0, 255, 1.5)
+    kaizer.render.line(cx, cy - size, cx, cy + size, 0, 255, 0, 255, 1.5)
+end
+```
+
+**Outlined text label**
+
+```lua
+local function draw_text_outlined(x, y, text, r, g, b, a)
+    -- black outline
+    kaizer.render.text(x + 1, y + 1, text, 0, 0, 0, a)
+    -- main text
+    kaizer.render.text(x, y, text, r, g, b, a)
+end
+
+function on_tick()
+    if not kaizer or not kaizer.render then return end
+    draw_text_outlined(30, 40, "Kaizer Lua", 255, 255, 255, 255)
+end
+```
+
+**Health bar style rectangle**
+
+```lua
+function draw_bar(x, y, w, h, pct)
+    pct = math.max(0.0, math.min(1.0, pct))
+    local fill_w = w * pct
+    kaizer.render.rect(x, y, x + w, y + h, 0, 0, 0, 180, true)
+    kaizer.render.rect(x + 1, y + 1, x + 1 + fill_w - 2, y + h - 1, 0, 200, 0, 220, true)
+end
+```
 
 ---
 
@@ -126,6 +225,40 @@ end
 | **`kaizer.utils.time()`** | ImGui time (seconds since start). |
 | **`kaizer.utils.get_key_name(vk)`** | Human-readable key name for a VK code (e.g. for display). |
 
+#### Basic `kaizer.utils` patterns
+
+**Timed toggle (cooldown-style)**
+
+```lua
+local last_toggle = 0
+local enabled = false
+
+function on_tick()
+    if not kaizer then return end
+    local now = kaizer.utils.time()
+
+    if kaizer.utils.key_down(kaizer.VK.F1) and now - last_toggle > 0.25 then
+        enabled = not enabled
+        last_toggle = now
+    end
+
+    if kaizer.menu_is_open() then
+        kaizer.menu.text("F1 toggle: " .. tostring(enabled))
+    end
+end
+```
+
+**FPS / delta time display**
+
+```lua
+function on_tick()
+    if not kaizer or not kaizer.render then return end
+    local dt = kaizer.utils.delta_time()
+    local fps = (dt > 0) and (1.0 / dt) or 0
+    kaizer.render.text(10, 10, string.format("dt=%.4f  fps=%.1f", dt, fps), 255, 255, 255, 255)
+end
+```
+
 ---
 
 ### `kaizer.sdk` (game data)
@@ -161,6 +294,62 @@ end
 | **`kaizer.sdk.ally_count()`** | Number of teammates (from live teammate names list). |
 | **`kaizer.sdk.ally_name(i)`** | Teammate name at index `i` (hero name string). |
 
+#### Basic `kaizer.sdk` patterns
+
+**World/target info overlay**
+
+```lua
+function on_tick()
+    if not kaizer or not kaizer.sdk or not kaizer.render then return end
+
+    -- Camera and player info
+    local px = kaizer.sdk.player_x()
+    local py = kaizer.sdk.player_y()
+    local pz = kaizer.sdk.player_z()
+    local fov = kaizer.sdk.fov()
+
+    kaizer.render.text(20, 40, string.format("Player: %.1f %.1f %.1f", px, py, pz), 255, 255, 255, 255)
+    kaizer.render.text(20, 60, string.format("FOV: %.1f", fov), 255, 255, 255, 255)
+
+    -- Target marker
+    if kaizer.sdk.target_player() then
+        local tx = kaizer.sdk.target_player_x()
+        local ty = kaizer.sdk.target_player_y()
+        local tz = kaizer.sdk.target_player_z()
+        local sx, sy, on_screen = kaizer.sdk.world_to_screen(tx, ty, tz)
+        if on_screen then
+            kaizer.render.circle(sx, sy, 18, 255, 0, 0, 220, false, 32)
+        end
+    end
+end
+```
+
+**Enemy list using overlay data**
+
+```lua
+function on_tick()
+    if not kaizer or not kaizer.sdk or not kaizer.render then return end
+
+    local n = kaizer.sdk.enemy_overlay_count()
+    if n <= 0 then return end
+
+    local y = 80
+    for i = 1, n do
+        local name = kaizer.sdk.enemy_overlay_name(i)
+        local ult = kaizer.sdk.enemy_overlay_ult(i)
+        local role = kaizer.sdk.enemy_overlay_role(i)
+        local role_name = (role == 0 and "Tank")
+            or (role == 1 and "DPS")
+            or (role == 2 and "Support")
+            or "Unknown"
+
+        local line = string.format("%s [%s] ult=%d%%", name, role_name, ult)
+        kaizer.render.text(20, y, line, 255, 255, 255, 255)
+        y = y + 16
+    end
+end
+```
+
 ---
 
 ### `kaizer.input`
@@ -171,6 +360,20 @@ end
 | **`kaizer.input.release_key(vk)`** | Simulate key release (up). |
 | **`kaizer.input.mouse_move(dx, dy)`** | Relative mouse movement in pixels. |
 
+#### Basic `kaizer.input` patterns
+
+```lua
+function on_tick()
+    if not kaizer then return end
+
+    -- Simple key spam example (toggle this kind of behavior carefully)
+    if kaizer.utils.key_down(kaizer.VK.F2) then
+        kaizer.input.press_key(kaizer.VK.SPACE)
+        kaizer.input.release_key(kaizer.VK.SPACE)
+    end
+end
+```
+
 ---
 
 ### `kaizer.hotkey`
@@ -178,6 +381,24 @@ end
 | Function | Description |
 |----------|-------------|
 | **`kaizer.hotkey.add(label, vk, is_hold, is_active)`** | Show this keybind in the **Hotkeys** overlay. Call each frame in `on_tick`. `is_hold` = hold-to-activate; `is_active` = currently active (e.g. key held or toggle on). |
+
+#### Basic `kaizer.hotkey` pattern
+
+```lua
+local enabled = false
+
+function on_tick()
+    if not kaizer then return end
+
+    if kaizer.utils.key_down(kaizer.VK.F3) then
+        enabled = true
+    else
+        enabled = false
+    end
+
+    kaizer.hotkey.add("My F3 feature", kaizer.VK.F3, true, enabled)
+end
+```
 
 ---
 
