@@ -71,6 +71,8 @@ Scripts receive a global **`kaizer`** table. All functions require `kaizer` to b
 | **`kaizer.menu.tree_pop()`** | End the current tree node. |
 | **`kaizer.menu.collapsing_header(label)`** | Collapsing section. Returns `true` if open. |
 | **`kaizer.menu.add_tab(name, callback)`** | Add a custom tab to the sidebar (next to Lua, Skins, etc.). Call each frame in `on_tick` with a function that draws the tab content. |
+| **`kaizer.menu.begin_child(id, w?, h?, border?)`** | Begin a child region inside the current window. Returns `true` if visible. |
+| **`kaizer.menu.end_child()`** | End the current child region. Must be paired with `begin_child`. |
 | **`kaizer.menu.color_edit3(label, r, g, b)`** | RGB color picker. Returns `r, g, b` (0–1). |
 | **`kaizer.menu.color_edit4(label, r, g, b, a?)`** | RGBA color picker. Returns `r, g, b, a`. |
 | **`kaizer.menu.combo(label, current, items, height?)`** | Dropdown. `items` = `"opt1;opt2;opt3"`. Returns `(new_index, changed)`. |
@@ -161,6 +163,8 @@ All coordinates and sizes are in screen pixels. Colors are **R, G, B, A** (0–2
 | **`kaizer.render.quad(x1, y1, x2, y2, x3, y3, x4, y4, r, g, b, a, filled)`** | Quad (four corners). |
 | **`kaizer.render.text(x, y, text, r, g, b, a)`** | Text at position. |
 | **`kaizer.render.text_size(text)`** | Returns `width, height` of the text in pixels. |
+| **`kaizer.render.push_font(index)`** | Use a different ImGui font for subsequent `render.text` calls. `index` corresponds to fonts available in the menu (0 = default ESP font, etc.). |
+| **`kaizer.render.pop_font()`** | Restore the previous font after `push_font`. |
 | **`kaizer.render.image(texId, x, y, w, h)`** | Draw a loaded image. `texId` from `load_image`. |
 | **`kaizer.render.load_image(path)`** | Load image (PNG/JPG/BMP). Relative path = under Lua folder. Returns texture id (0 on failure). Cached by path. |
 | **`kaizer.render.arc(cx, cy, radius, a_min, a_max, r, g, b, a, thick?, segs?)`** | Arc (degrees). |
@@ -265,6 +269,7 @@ end
 | **`kaizer.utils.remap(v, in_lo, in_hi, out_lo, out_hi)`** | Map value between ranges. |
 | **`kaizer.utils.angle_diff(a, b)`** | Shortest angle diff in degrees (-180 to 180). |
 | **`kaizer.utils.format_time(seconds)`** | Format as `"M:SS"` or `"H:MM:SS"`. |
+| **`kaizer.utils.should_tick(interval)`** | Helper to throttle work: returns `true` only when `interval` seconds have elapsed since last `true` for this script. |
 
 #### Basic `kaizer.utils` patterns
 
@@ -294,6 +299,10 @@ end
 ```lua
 function on_tick()
     if not kaizer or not kaizer.render then return end
+
+    -- Only update this overlay ~10 times per second to reduce cost
+    if not kaizer.utils.should_tick(0.1) then return end
+
     local dt = kaizer.utils.delta_time()
     local fps = (dt > 0) and (1.0 / dt) or 0
     kaizer.render.text(10, 10, "dt=" .. tostring(dt) .. "  fps=" .. tostring(fps), 255, 255, 255, 255)
@@ -308,14 +317,17 @@ end
 |----------|-------------|
 | **`kaizer.sdk.camera_x/y/z()`** | Camera world position. |
 | **`kaizer.sdk.camera_pitch/yaw()`** | Camera rotation (pitch, yaw). |
+| **`kaizer.sdk.camera_info()`** | Returns table: `x`, `y`, `z`, `pitch`, `yaw`, `roll`, `fov`. |
 | **`kaizer.sdk.screen_w/h()`** | Screen width and height. |
 | **`kaizer.sdk.screen_center_x/y()`** | Center of the screen. |
 | **`kaizer.sdk.has_world()`** | `true` if world is valid. |
 | **`kaizer.sdk.has_player()`** | `true` if local player exists. |
 | **`kaizer.sdk.player_x/y/z()`** | Local player world position. |
+| **`kaizer.sdk.player_info()`** | Returns table: `has_player`, `x`, `y`, `z`, `distance_to_camera`. |
 | **`kaizer.sdk.fov()`** | Current field of view. |
 | **`kaizer.sdk.target_player()`** | `true` if aimbot has a current target. |
 | **`kaizer.sdk.target_player_x/y/z()`** | World position of the current aimbot target (0 if no target). |
+| **`kaizer.sdk.target_info()`** | Returns table: `has_target`, `x`, `y`, `z`, `distance_to_camera`, `screen_x`, `screen_y`, `on_screen`. |
 | **`kaizer.sdk.locked_target()`** | `true` if a target is locked (target lock feature). |
 | **`kaizer.sdk.local_hitscan()`** | `true` if local hero is hitscan. |
 | **`kaizer.sdk.local_melee()`** | `true` if local hero is melee. |
@@ -327,6 +339,8 @@ end
 | **`kaizer.sdk.enemy_overlay_player_name(i)`** | Player name for enemy at index `i`. |
 | **`kaizer.sdk.enemy_overlay_is_bot(i)`** | `true` if enemy at index `i` is a bot. |
 | **`kaizer.sdk.enemy_overlay_role(i)`** | Role for enemy at index `i`: 0 = Tank, 1 = Damage, 2 = Support, 3 = Unknown. |
+| **`kaizer.sdk.enemy_overlay_ai_difficulty(i)`** | AI difficulty for enemy at index `i` (0 = human, >0 = bot level). |
+| **`kaizer.sdk.enemy_overlay_info(i)`** | Returns a table with fields: `hero_id`, `name`, `ult`, `role`, `ai_difficulty`, `is_bot`, `player_name`. |
 | **`kaizer.sdk.get_hero_name(heroId)`** | Hero name string for a hero ID. |
 | **`kaizer.sdk.get_hero_role(heroId)`** | Role for a hero ID: 0 = Tank, 1 = Damage, 2 = Support, 3 = Unknown. |
 | **`kaizer.sdk.world_to_screen(wx, wy, wz)`** | Project world position to screen. Returns `(sx, sy, on_screen)`. Uses game SDK projection. |
