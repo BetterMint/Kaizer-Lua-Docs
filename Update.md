@@ -1,8 +1,4 @@
-# Kaizer – Discord documentation
-
-Post this in your Discord for users. You can split into multiple messages by section.
-
-**Lua scripting** is documented separately (link or attach `LUA_SCRIPTING.md` when you send it).
+# Kaizer – Update 3/7/2026
 
 ---
 
