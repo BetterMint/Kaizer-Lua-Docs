@@ -283,12 +283,16 @@ end
 
 ### 4. Enemy overlay list
 
+**Important:** Always guard with `if not kaizer or not kaizer.sdk then return end` so the script exits safely when the game world is not ready.
+
 ```lua
 function on_tick()
-    if not kaizer then return end
+    if not kaizer or not kaizer.sdk then return end
+    if not kaizer.render then return end
     local n = kaizer.sdk.enemy_overlay_count()
+    if n <= 0 then return end
     local y = 50
-    for i = 0, n - 1 do
+    for i = 1, n do  -- 1-based index (Lua convention)
         local name = kaizer.sdk.enemy_overlay_name(i)
         local ult = kaizer.sdk.enemy_overlay_ult(i)
         kaizer.render.text(20, y, name .. " Ult: " .. tostring(ult) .. "%", 255, 255, 255, 255)
